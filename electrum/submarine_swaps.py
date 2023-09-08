@@ -199,7 +199,7 @@ class SwapManager(Logger):
             swap._payment_hash = payment_hash
             self._add_or_reindex_swap(swap)
             if not swap.is_reverse and not swap.is_redeemed:
-                self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
+                self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
 
         self.prepayments = {}  # type: Dict[bytes, bytes] # fee_rhash -> rhash
         for k, swap in self.swaps.items():
@@ -251,6 +251,15 @@ class SwapManager(Logger):
                     continue
                 await self.taskgroup.spawn(self.pay_invoice(key))
 
+    def fail_normal_swap(self, swap):
+        if swap.payment_hash in self.lnworker.hold_invoice_callbacks:
+            self.logger.info(f'failing normal swap {swap.payment_hash.hex()}')
+            self.lnworker.unregister_hold_invoice(swap.payment_hash)
+            payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
+            payment_key = swap.payment_hash + payment_secret
+            self.lnworker.fail_final_onion_forwarding(payment_key)
+        self.lnwatcher.remove_callback(swap.lockup_address
+)
     @log_exceptions
     async def _claim_swap(self, swap: SwapData) -> None:
         assert self.network
@@ -260,6 +269,10 @@ class SwapManager(Logger):
         current_height = self.network.get_local_height()
         delta = current_height - swap.locktime
         txos = self.lnwatcher.adb.get_addr_outputs(swap.lockup_address)
+        if len(txos) == 0 and not swap.is_reverse and delta >= 0:
+            self.fail_normal_swap(swap)
+            return
+
         for txin in txos.values():
             if swap.is_reverse and txin.value_sats() < swap.onchain_amount:
                 self.logger.info('amount too low, we should not reveal the preimage')
@@ -298,10 +311,7 @@ class SwapManager(Logger):
                     else:
                         # refund tx
                         if spent_height > 0:
-                            self.logger.info(f'found confirmed refund')
-                            payment_secret = self.lnworker.get_payment_secret(swap.payment_hash)
-                            payment_key = swap.payment_hash + payment_secret
-                            self.lnworker.fail_final_onion_forwarding(payment_key)
+                            self.fail_normal_swap(swap)
 
                 if delta < 0:
                     # too early for refund
@@ -391,7 +401,7 @@ class SwapManager(Logger):
             invoice=None,
             prepay=True,
         )
-        self.lnworker.register_callback_for_hold_invoice(payment_hash, self.hold_invoice_callback)
+        self.lnworker.register_hold_invoice(payment_hash, self.hold_invoice_callback)
         return swap, invoice, prepay_invoice
 
     def add_normal_swap(
@@ -652,7 +662,7 @@ class SwapManager(Logger):
             data = json.loads(response)
             async def callback(payment_hash):
                 await self.broadcast_funding_tx(swap, tx)
-            self.lnworker.register_callback_for_hold_invoice(payment_hash, callback)
+            self.lnworker.register_hold_invoice(payment_hash, callback)
             # wait for funding tx
             lnaddr = lndecode(invoice)
             while swap.funding_txid is None and not lnaddr.is_expired():

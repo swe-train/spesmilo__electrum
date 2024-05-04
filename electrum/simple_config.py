@@ -919,15 +919,6 @@ class SimpleConfig(Logger):
                     f"Either use config.cv.{name}.set() or assign to config.{name} instead.")
         return CVLookupHelper()
 
-    def _default_swapserver_url(self) -> str:
-        if constants.net == constants.BitcoinMainnet:
-            default = 'https://swaps.electrum.org/api'
-        elif constants.net == constants.BitcoinTestnet:
-            default = 'https://swaps.electrum.org/testnet'
-        else:
-            default = 'http://localhost:5455'
-        return default
-
     # config variables ----->
     NETWORK_AUTO_CONNECT = ConfigVar('auto_connect', default=True, type_=bool)
     NETWORK_ONESERVER = ConfigVar('oneserver', default=False, type_=bool)
@@ -1185,7 +1176,7 @@ This will result in longer routes; it might increase your fees and decrease the 
     CONFIG_FORGET_CHANGES = ConfigVar('forget_config', default=False, type_=bool)
 
     # connect to remote submarine swap server
-    SWAPSERVER_URL = ConfigVar('swapserver_url', default=_default_swapserver_url, type_=str)
+    SWAPSERVER_URL = ConfigVar('swapserver_url', default='', type_=str) # for tests, http://localhost:5455
     # run submarine swap server locally
     SWAPSERVER_PORT = ConfigVar('swapserver_port', default=5455, type_=int)
     TEST_SWAPSERVER_REFUND = ConfigVar('test_swapserver_refund', default=False, type_=bool)

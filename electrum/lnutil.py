@@ -1617,6 +1617,7 @@ class LnKeyFamily(IntEnum):
     NODE_KEY = 6
     BACKUP_CIPHER = 7 | BIP32_PRIME
     PAYMENT_SECRET_KEY = 8 | BIP32_PRIME
+    NOSTR_KEY = 9
 
 
 def generate_keypair(node: BIP32Node, key_family: LnKeyFamily) -> Keypair:

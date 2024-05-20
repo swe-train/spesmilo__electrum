@@ -1204,7 +1204,7 @@ class Peer(Logger):
             if peerbackup:
                 # todo: verify_peerbackup_signature if chan is None
                 self.logger.info('reconstructing channel')
-                state = Channel.state_from_peerbackup(peerbackup['state'], lnworker=self.lnworker)
+                state = Channel.channel_state_from_peerbackup(peerbackup['state'], lnworker=self.lnworker)
                 # chan can be None, see maybe_resuming
                 if not chan:
                     channel_id = state["channel_id"]
